@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Incident Log</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    form, table { margin-bottom: 20px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    textarea { width: 100%; }
+    img { border: 1px solid #666; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Incident Entry</h1>
+  <form id="incidentForm">
+    <label>Date & Time:
+      <input type="date" id="incidentDate" required>
+      <input type="time" id="incidentTime" required>
+    </label><br><br>
+
+    <label>Event Number:
+      <input type="text" id="eventNumber" required>
+    </label><br><br>
+
+    <label>Job Type:
+      <select id="jobType">
+        <option>Land</option>
+        <option>Marine</option>
+        <option>Admin</option>
+      </select>
+    </label><br><br>
+
+    <label>District:
+      <select id="district">
+        <option>City</option>
+        <option>Waitemata</option>
+        <option>Counties</option>
+        <option>North</option>
+        <option>South</option>
+      </select>
+    </label><br><br>
+
+    <label>Staff (multi-select):<br>
+      <select id="staff" multiple size="8" style="width:200px;">
+        <option>Alice</option>
+        <option>Bob</option>
+        <option>Charlie</option>
+        <option>David</option>
+        <option>Emma</option>
+        <option>Frank</option>
+        <option>Grace</option>
+        <option>Henry</option>
+        <option>Isla</option>
+        <option>Jack</option>
+        <option>Karen</option>
+        <option>Leo</option>
+        <option>Mia</option>
+        <option>Noah</option>
+        <option>Olivia</option>
+        <option>Paul</option>
+        <option>Quinn</option>
+        <option>Ruby</option>
+        <option>Sam</option>
+        <option>Tina</option>
+        <option>Uma</option>
+        <option>Victor</option>
+        <option>Wendy</option>
+        <option>Xavier</option>
+        <option>Zoe</option>
+      </select>
+    </label><br><br>
+
+    <label>Shift:
+      <select id="shift">
+        <option>Early</option>
+        <option>Late</option>
+      </select>
+    </label><br><br>
+
+    <label>Incident Notes:<br>
+      <textarea id="incidentNotes" rows="4" placeholder="Enter details about the incident..."></textarea>
+    </label><br><br>
+
+    <label>Upload Photo:
+      <input type="file" id="incidentPhoto" accept="image/*">
+    </label><br><br>
+
+    <button type="submit">Save Incident</button>
+  </form>
+
+  <h2>Generate Report</h2>
+  <label>Report Type:
+    <select id="reportType">
+      <option value="daily">Daily</option>
+      <option value="weekly">Weekly</option>
+    </select>
+  </label>
+  <label>Date:
+    <input type="date" id="reportDate">
+  </label>
+  <button onclick="generateReport()">Generate</button>
+  <button onclick="exportWord()">Export as Word</button>
+
+  <h2>Report</h2>
+  <table id="reportTable">
+    <thead>
+      <tr>
+        <th>Date & Time</th>
+        <th>Event #</th>
+        <th>Job Type</th>
+        <th>District</th>
+        <th>Staff</th>
+        <th>Shift</th>
+        <th>Notes & Photo</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+  const form = document.getElementById("incidentForm");
+  const reportTableBody = document.querySelector("#reportTable tbody");
+  let incidents = JSON.parse(localStorage.getItem("incidents")) || [];
+  let staffMemory = JSON.parse(localStorage.getItem("staffMemory")) || {};
+
+  // Set today’s date + time on load
+  window.addEventListener("DOMContentLoaded", () => {
+    const today = new Date();
+    document.getElementById("incidentDate").value = today.toISOString().split("T")[0];
+    document.getElementById("incidentTime").value = today.toTimeString().slice(0,5);
+    autoFillStaff();
+  });
+
+  // Auto-fill staff if memory exists
+  document.getElementById("incidentDate").addEventListener("change", autoFillStaff);
+  document.getElementById("shift").addEventListener("change", autoFillStaff);
+
+  function autoFillStaff() {
+    const date = document.getElementById("incidentDate").value;
+    const shift = document.getElementById("shift").value;
+    if (!date || !shift) return;
+    const key = date + "_" + shift;
+    if (staffMemory[key]) {
+      const staffSelect = document.getElementById("staff");
+      Array.from(staffSelect.options).forEach(opt => {
+        opt.selected = staffMemory[key].includes(opt.value);
+      });
+    }
+  }
+
+  // Save incident
+  form.addEventListener("submit", function(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById("incidentPhoto");
+    const file = fileInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(event) { saveIncident(event.target.result); };
+      reader.readAsDataURL(file);
+    } else {
+      saveIncident(null);
+    }
+  });
+
+  function saveIncident(photo) {
+    const date = document.getElementById("incidentDate").value;
+    const time = document.getElementById("incidentTime").value;
+    const shift = document.getElementById("shift").value;
+    const staffList = Array.from(document.getElementById("staff").selectedOptions).map(o => o.value);
+
+    const incident = {
+      date: date + " " + time,
+      eventNumber: document.getElementById("eventNumber").value,
+      jobType: document.getElementById("jobType").value,
+      district: document.getElementById("district").value,
+      staff: staffList,
+      shift: shift,
+      notes: document.getElementById("incidentNotes").value,
+      photo: photo
+    };
+
+    incidents.push(incident);
+    localStorage.setItem("incidents", JSON.stringify(incidents));
+
+    // Remember staff for date+shift
+    const key = date + "_" + shift;
+    staffMemory[key] = staffList;
+    localStorage.setItem("staffMemory", JSON.stringify(staffMemory));
+
+    form.reset();
+    const today = new Date();
+    document.getElementById("incidentDate").value = today.toISOString().split("T")[0];
+    document.getElementById("incidentTime").value = today.toTimeString().slice(0,5);
+    autoFillStaff();
+    alert("Incident saved!");
+  }
+
+  // Generate report
+  function generateReport() {
+    const reportType = document.getElementById("reportType").value;
+    const reportDateInput = document.getElementById("reportDate").value;
+    if (!reportDateInput) { alert("Please select a date"); return; }
+    const reportDate = new Date(reportDateInput);
+    let filtered = [];
+
+    if (reportType === "daily") {
+      filtered = incidents.filter(i => new Date(i.date).toDateString() === reportDate.toDateString());
+    } else {
+      const weekStart = new Date(reportDate);
+      weekStart.setDate(reportDate.getDate() - reportDate.getDay());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      filtered = incidents.filter(i => {
+        const d = new Date(i.date);
+        return d >= weekStart && d <= weekEnd;
+      });
+    }
+
+    reportTableBody.innerHTML = "";
+    filtered.forEach(i => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${i.date}</td>
+        <td>${i.eventNumber}</td>
+        <td>${i.jobType}</td>
+        <td>${i.district}</td>
+        <td>${i.staff.join(", ")}</td>
+        <td>${i.shift}</td>
+        <td>
+          ${i.notes}
+          ${i.photo ? `<br><img src="${i.photo}" style="max-width:150px;">` : ""}
+        </td>
+      `;
+      reportTableBody.appendChild(row);
+    });
+  }
+
+  // Export report to Word
+  function exportWord() {
+    const rows = document.querySelectorAll("#reportTable tbody tr");
+    if (rows.length === 0) { alert("No report data to export!"); return; }
+
+    let wordContent = "<h2>Incident Report</h2>";
+
+    rows.forEach(row => {
+      const cells = row.querySelectorAll("td");
+      const date = cells[0].innerText;
+      const eventNumber = cells[1].innerText;
+      const jobType = cells[2].innerText;
+      const district = cells[3].innerText;
+      const staff = cells[4].innerText;
+      const shift = cells[5].innerText;
+      const notesPhoto = cells[6].innerHTML;
+
+      wordContent += `
+        <table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse; width:100%; margin-bottom:10px;">
+          <tr><td><b>Date & Time</b></td><td>${date}</td></tr>
+          <tr><td><b>Event #</b></td><td>${eventNumber}</td></tr>
+          <tr><td><b>Job Type</b></td><td>${jobType}</td></tr>
+          <tr><td><b>District</b></td><td>${district}</td></tr>
+          <tr><td><b>Staff</b></td><td>${staff}</td></tr>
+          <tr><td><b>Shift</b></td><td>${shift}</td></tr>
+        </table>
+        <p><b>Notes & Photo:</b></p>
+        <p>${notesPhoto}</p>
+        <hr>
+      `;
+    });
+
+    const html = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office'
+            xmlns:w='urn:schemas-microsoft-com:office:word'
+            xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'></head>
+      <body>${wordContent}</body></html>
+    `;
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "IncidentReport.doc";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+</script>
+</body>
+</html>
